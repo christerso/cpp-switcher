@@ -38,9 +38,12 @@ local function find_corresponding_file(current_file)
   local target_ext = is_header and M.config.source_ext or M.config.header_ext
   local target_dirs = is_header and M.config.source_dirs or M.config.header_dirs
   
+  -- Get just the filename without path
+  local current_filename = vim.fn.fnamemodify(current_file, ":t:r")
+  
   -- First, try same directory
   for _, ext in ipairs(target_ext) do
-    local same_dir_path = current_parent / (base_name .. "." .. ext)
+    local same_dir_path = current_parent / (current_filename .. "." .. ext)
     if file_exists(same_dir_path:absolute()) then
       return same_dir_path:absolute()
     end
@@ -54,7 +57,7 @@ local function find_corresponding_file(current_file)
         local target_dir = project_root / dir
         if target_dir:is_dir() then
           for _, ext in ipairs(target_ext) do
-            local target_path = target_dir / (get_base_name(current_path:filename()) .. "." .. ext)
+            local target_path = target_dir / (current_filename .. "." .. ext)
             if file_exists(target_path:absolute()) then
               return target_path:absolute()
             end

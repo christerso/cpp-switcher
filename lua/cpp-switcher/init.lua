@@ -7,7 +7,7 @@ M.config = {
   source_ext = { "cpp", "cxx", "cc", "c" },
   header_dirs = { "include", "inc", "headers", "hpp" },
   source_dirs = { "src", "source", "sources", "cpp" },
-  search_depth = 5, -- Depth to search for the project root
+  search_depth = 5, -- Depth to search for the project root and ancestor directories
 }
 
 -- Helper functions
@@ -28,7 +28,7 @@ local function file_exists(path)
   return false
 end
 
--- Find the project root using standard markers
+-- Find project root
 local function find_project_root(start_dir)
   local markers = { ".git", "CMakeLists.txt", "Makefile", ".clangd", "compile_commands.json" }
   local dir = Path:new(start_dir)
@@ -44,7 +44,7 @@ local function find_project_root(start_dir)
   return nil
 end
 
--- Find the corresponding file (header/implementation)
+-- Updated file search logic
 local function find_corresponding_file(current_file)
   local current_path = Path:new(current_file)
   local current_parent = current_path:parent()
@@ -66,7 +66,7 @@ local function find_corresponding_file(current_file)
 
   vim.notify("Searching from root: " .. project_root:absolute(), vim.log.levels.DEBUG)
 
-  -- First, try the same directory
+  -- 1. Check same directory first
   for _, ext in ipairs(target_ext) do
     local same_dir_path = Path:new(current_parent, base_name .. "." .. ext)
     if file_exists(same_dir_path:absolute()) then
@@ -74,7 +74,7 @@ local function find_corresponding_file(current_file)
     end
   end
 
-  -- Search in parallel directories
+  -- 2. Check project root's target directories
   for _, dir in ipairs(target_dirs) do
     local target_dir = Path:new(project_root, dir)
     if target_dir:is_dir() then
@@ -82,6 +82,25 @@ local function find_corresponding_file(current_file)
         local target_path = Path:new(target_dir, base_name .. "." .. ext)
         if file_exists(target_path:absolute()) then
           return target_path:absolute()
+        end
+      end
+    end
+  end
+
+  -- 3. Check ancestor directories for target folders
+  local search_dir = current_parent
+  for _ = 1, M.config.search_depth do
+    search_dir = search_dir:parent()
+    if not search_dir then break end
+
+    for _, dir in ipairs(target_dirs) do
+      local target_dir = Path:new(search_dir, dir)
+      if target_dir:is_dir() then
+        for _, ext in ipairs(target_ext) do
+          local target_path = Path:new(target_dir, base_name .. "." .. ext)
+          if file_exists(target_path:absolute()) then
+            return target_path:absolute()
+          end
         end
       end
     end
@@ -104,10 +123,7 @@ end
 
 -- Setup function
 function M.setup(opts)
-  -- Merge user config with defaults
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
-
-  -- Set up keymapping
   vim.keymap.set("n", "<leader>`", switch_header_implementation, {
     noremap = true,
     silent = true,

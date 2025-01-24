@@ -7,7 +7,7 @@ M.config = {
   source_ext = { "cpp", "cxx", "cc", "c" },
   header_dirs = { "include", "inc", "headers", "hpp" },
   source_dirs = { "src", "source", "sources", "cpp" },
-  search_depth = 5,
+  search_depth = 5, -- Depth to search for the project root
 }
 
 -- Helper functions
@@ -28,46 +28,65 @@ local function file_exists(path)
   return false
 end
 
+-- Find the project root using standard markers
+local function find_project_root(start_dir)
+  local markers = { ".git", "CMakeLists.txt", "Makefile", ".clangd", "compile_commands.json" }
+  local dir = Path:new(start_dir)
+
+  for _ = 1, M.config.search_depth do
+    for _, marker in ipairs(markers) do
+      if (dir / marker):exists() then
+        return dir
+      end
+    end
+    dir = dir:parent()
+  end
+  return nil
+end
+
+-- Find the corresponding file (header/implementation)
 local function find_corresponding_file(current_file)
   local current_path = Path:new(current_file)
   local current_parent = current_path:parent()
-  local base_name = get_base_name(current_path:absolute())
-  local ext = get_extension(current_file)
-  
+  local filename = current_path:filename()
+  local base_name = get_base_name(filename)
+  local ext = get_extension(filename)
+
+  -- Check for valid extension
+  if not base_name or not ext then
+    vim.notify("Current file has no valid extension", vim.log.levels.WARN)
+    return nil
+  end
+
   local is_header = vim.tbl_contains(M.config.header_ext, ext)
   local target_ext = is_header and M.config.source_ext or M.config.header_ext
   local target_dirs = is_header and M.config.source_dirs or M.config.header_dirs
-  
-  -- Get just the filename without path
-  local current_filename = vim.fn.fnamemodify(current_file, ":t:r")
-  
-  -- First, try same directory
+
+  local project_root = find_project_root(current_parent:absolute()) or current_parent
+
+  vim.notify("Searching from root: " .. project_root:absolute(), vim.log.levels.DEBUG)
+
+  -- First, try the same directory
   for _, ext in ipairs(target_ext) do
-    local same_dir_path = current_parent / (current_filename .. "." .. ext)
+    local same_dir_path = Path:new(current_parent, base_name .. "." .. ext)
     if file_exists(same_dir_path:absolute()) then
       return same_dir_path:absolute()
     end
   end
-  
+
   -- Search in parallel directories
-  local project_root = current_parent
-  for _ = 1, M.config.search_depth do
-    if project_root:is_dir() then
-      for _, dir in ipairs(target_dirs) do
-        local target_dir = project_root / dir
-        if target_dir:is_dir() then
-          for _, ext in ipairs(target_ext) do
-            local target_path = target_dir / (current_filename .. "." .. ext)
-            if file_exists(target_path:absolute()) then
-              return target_path:absolute()
-            end
-          end
+  for _, dir in ipairs(target_dirs) do
+    local target_dir = Path:new(project_root, dir)
+    if target_dir:is_dir() then
+      for _, ext in ipairs(target_ext) do
+        local target_path = Path:new(target_dir, base_name .. "." .. ext)
+        if file_exists(target_path:absolute()) then
+          return target_path:absolute()
         end
       end
     end
-    project_root = project_root:parent()
   end
-  
+
   return nil
 end
 
@@ -75,7 +94,7 @@ end
 local function switch_header_implementation()
   local current_file = vim.fn.expand("%:p")
   local corresponding_file = find_corresponding_file(current_file)
-  
+
   if corresponding_file then
     vim.cmd("edit " .. corresponding_file)
   else
@@ -87,7 +106,7 @@ end
 function M.setup(opts)
   -- Merge user config with defaults
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
-  
+
   -- Set up keymapping
   vim.keymap.set("n", "<leader>`", switch_header_implementation, {
     noremap = true,

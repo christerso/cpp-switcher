@@ -1,11 +1,12 @@
 # C++ Header/Implementation Switcher for Neovim
 
-A Neovim plugin that provides intelligent switching between C++ header and implementation files. This plugin automatically finds corresponding header/implementation files even across different directories, without prompting for file selection.
+A Neovim plugin that provides intelligent switching between C++ header and implementation files. This plugin automatically finds corresponding header/implementation files across different directories, without prompting for file selection.
 
 ## Features
 
 - Quick switching between header (.h, .hpp, etc.) and implementation (.cpp, .c, etc.) files
 - Smart path detection across different directory structures
+- Custom project root support for non-standard project layouts
 - Supports multiple file extensions for both headers and source files
 - Configurable search depth and directory names
 - No prompts - automatically finds the most relevant file
@@ -47,7 +48,10 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
   source_dirs = { "src", "source", "sources", "cpp" },
   
   -- How many directory levels up to search
-  search_depth = 5
+  search_depth = 5,
+
+  -- Custom project roots for non-standard layouts
+  custom_project_roots = {}
 }
 ```
 
@@ -58,7 +62,8 @@ The default keybinding is `<leader>sh` which switches between header and impleme
 The plugin will:
 1. First look in the current directory for the corresponding file
 2. If not found, it will search in parallel directories (src/include, etc.)
-3. Continue searching up the directory tree up to the configured search depth
+3. If no project root markers found, it will check custom project roots
+4. Continue searching up the directory tree up to the configured search depth
 
 ## Supported Directory Structures
 
@@ -82,7 +87,14 @@ project/
     ├── file.cpp
     └── file.hpp
 
-// ... and other common variations
+// Custom project roots are also supported
+custom_root/
+├── any/
+│   └── path/
+│       └── file.cpp
+└── different/
+    └── path/
+        └── file.hpp
 ```
 
 ## Configuration
@@ -100,7 +112,10 @@ You can customize the plugin's behavior by modifying any of the default settings
       header_ext = { "h", "hpp" },  -- Only look for these header extensions
       source_ext = { "cpp" },       -- Only look for these source extensions
       search_depth = 3,             -- Reduce search depth
-      -- ... other options
+      custom_project_roots = {      -- Add custom project roots
+        "G:/repos/myproject",
+        "/path/to/another/project"
+      }
     })
   end
 }
@@ -109,4 +124,3 @@ You can customize the plugin's behavior by modifying any of the default settings
 ## License
 
 MIT
-
